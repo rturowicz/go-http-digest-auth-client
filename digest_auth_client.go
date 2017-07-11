@@ -15,6 +15,7 @@ type DigestRequest struct {
 	Username string
 	Auth     *authorization
 	Wa       *wwwAuthenticate
+	ContentType	string
 }
 
 type DigestTransport struct {
@@ -22,9 +23,9 @@ type DigestTransport struct {
 	Username string
 }
 
-func NewRequest(username string, password string, method string, uri string, body string) DigestRequest {
+func NewRequest(username string, password string, method string, uri string, body string, content_type string) DigestRequest {
 	dr := DigestRequest{}
-	dr.UpdateRequest(username, password, method, uri, body)
+	dr.UpdateRequest(username, password, method, uri, body, content_type)
 	return dr
 }
 
@@ -36,13 +37,14 @@ func NewTransport(username string, password string) DigestTransport {
 }
 
 func (dr *DigestRequest) UpdateRequest(username string,
-	password string, method string, uri string, body string) *DigestRequest {
+	password string, method string, uri string, body string, content_type string) *DigestRequest {
 
 	dr.Body = body
 	dr.Method = method
 	dr.Password = password
 	dr.Uri = uri
 	dr.Username = username
+	dr.ContentType = content_type
 	return dr
 }
 
@@ -59,7 +61,7 @@ func (dt *DigestTransport) RoundTrip(req *http.Request) (resp *http.Response, er
 		body = buf.String()
 	}
 
-	dr := NewRequest(username, password, method, uri, body)
+	dr := NewRequest(username, password, method, uri, body, req.Header.Get("Content-Type"))
 	return dr.Execute()
 }
 
@@ -69,6 +71,10 @@ func (dr *DigestRequest) Execute() (resp *http.Response, err error) {
 		var req *http.Request
 		if req, err = http.NewRequest(dr.Method, dr.Uri, bytes.NewReader([]byte(dr.Body))); err != nil {
 			return nil, err
+		}
+
+		if dr.ContentType != "" {
+			req.Header.Set("Content-Type", dr.ContentType)
 		}
 
 		client := &http.Client{
@@ -141,8 +147,11 @@ func (dr *DigestRequest) executeRequest(authString string) (*http.Response, erro
 		return nil, err
 	}
 
-	// fmt.Printf("AUTHSTRING: %s\n\n", authString)
 	req.Header.Add("Authorization", authString)
+
+	if dr.ContentType != "" {
+		req.Header.Set("Content-Type", dr.ContentType)
+	}
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
